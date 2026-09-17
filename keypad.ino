@@ -89,12 +89,14 @@ void releaseSlot(uint8_t i) {
 //MATRIX PINOUT
 //syntax: "what is written on the pro micro" == port number
 //
-//row0 := "D2" == D1      col0 := "D14" == B3
-//row1 := "D3" == D0      col1 := "D8/A8" == B4
-//row2 := "D4" == D4      col2 := "D16" == B2
-//row3 := "D20/A2" == F5  col3 := "D10/A10" == B6
-//row4 := "D21/A3" == F4  col4 := "D5" == C6
+//row0 := "D2" == D1      col0 := "D14" == B3       LED0 := "D5" == C6
+//row1 := "D3" == D0      col1 := "D8/A8" == B4     LED1 := "D6" == D7
+//row2 := "D4" == D4      col2 := "D10/A10" == B6   LED2 := "D7" == E6
+//row3 := "D20/A2" == F5  col3 := "D16" == B2
+//row4 := "D21/A3" == F4  col4 := "D9/A9" == B5
 //                        col5 := "D15" == B1
+//
+//All six columns sit on port B, so one PINB read samples a whole row.
 
 // ------------------------------------------------------------------
 //  Funkcijski akord:  'n' (indeks 11) + 'b' (indeks 5)
@@ -124,10 +126,10 @@ bool     suppressKeys = false;
 
 // ------------------------------------------------------------------
 //  Kalibracijske lucke
-//  LED0 odpade, ker je njen pin prevzel col4. Ostaneta LED1 in LED2.
 // ------------------------------------------------------------------
-const int  LED1_PIN        = 6;
-const int  LED2_PIN        = 7;
+const int  LED0_PIN        = 5;    // C6
+const int  LED1_PIN        = 6;    // D7
+const int  LED2_PIN        = 7;    // E6
 const bool LED_ACTIVE_LOW  = false;
 
 JoystickCalibrator js;
@@ -136,14 +138,16 @@ KeypadMode         mode = MODE_GAMEPAD;
 CalibrationState   prevCalibState = IDLE;
 
 void handleChord();
-void ledBoth(bool on);
+void ledAll(bool on);
 void serialPoll();
 
 // ------------------------------------------------------------------
 void ledWrite(int pin, bool on) {
     digitalWrite(pin, (on != LED_ACTIVE_LOW) ? HIGH : LOW);
 }
-void ledBoth(bool on) { ledWrite(LED1_PIN, on); ledWrite(LED2_PIN, on); }
+void ledAll(bool on) {
+    ledWrite(LED0_PIN, on); ledWrite(LED1_PIN, on); ledWrite(LED2_PIN, on);
+}
 
 void updateLeds() {
     const uint32_t t = millis();
@@ -158,21 +162,24 @@ void updateLeds() {
 
     switch (js.state) {
         case GET_CENTER:                                  // korak 1
-            ledWrite(LED1_PIN, (t % 500) < 250);
+            ledWrite(LED0_PIN, (t % 500) < 250);
+            ledWrite(LED1_PIN, false);
             ledWrite(LED2_PIN, false);
             break;
         case GET_FORWARD:                                 // korak 2
-            ledWrite(LED1_PIN, false);
-            ledWrite(LED2_PIN, (t % 500) < 250);
+            ledWrite(LED0_PIN, false);
+            ledWrite(LED1_PIN, (t % 500) < 250);
+            ledWrite(LED2_PIN, false);
             break;
         case GET_CIRCLE:                                  // korak 3
-            ledBoth((t % 250) < 125);
+            ledAll((t % 250) < 125);
             break;
         default: {                                        // IDLE
             // Lucki kazeta nacin. Ce nisi v osnovni plasti, obe vsake
             // poldrugo sekundo dvakrat kratko utripneta cez to.
             const uint32_t ph = t % 1500;
             const bool blip = (curLayer != 0) && (ph < 60 || (ph >= 140 && ph < 200));
+            ledWrite(LED0_PIN, false);
             ledWrite(LED1_PIN, blip || mode == MODE_WASD);
             ledWrite(LED2_PIN, blip || mode == MODE_ARROWS);
             break;
@@ -182,11 +189,11 @@ void updateLeds() {
 
 void ledResult(bool ok) {
     if (ok) {
-        ledBoth(true);  delay(700);  ledBoth(false);      // dolg utrip = shranjeno
+        ledAll(true);  delay(700);  ledAll(false);      // dolg utrip = shranjeno
     } else {
         for (int i = 0; i < 8; i++) {                     // hitro utripanje = zavrnjeno
-            ledBoth(true);  delay(70);
-            ledBoth(false); delay(70);
+            ledAll(true);  delay(70);
+            ledAll(false); delay(70);
         }
     }
 }
@@ -197,35 +204,35 @@ void readMatrix() {
     SET_PIN_LOW(D, 1);
     delayMicroseconds(10);
     matrixButtons[0] = !PIN_READ(B, 3);   matrixButtons[1] = !PIN_READ(B, 4);
-    matrixButtons[2] = !PIN_READ(B, 2);   matrixButtons[3] = !PIN_READ(B, 6);
-    matrixButtons[4] = !PIN_READ(C, 6);   matrixButtons[5] = !PIN_READ(B, 1);
+    matrixButtons[2] = !PIN_READ(B, 6);   matrixButtons[3] = !PIN_READ(B, 2);
+    matrixButtons[4] = !PIN_READ(B, 5);   matrixButtons[5] = !PIN_READ(B, 1);
     SET_PIN_HIGH(D, 1);
 
     SET_PIN_LOW(D, 0);
     delayMicroseconds(10);
     matrixButtons[6]  = !PIN_READ(B, 3);  matrixButtons[7]  = !PIN_READ(B, 4);
-    matrixButtons[8]  = !PIN_READ(B, 2);  matrixButtons[9]  = !PIN_READ(B, 6);
-    matrixButtons[10] = !PIN_READ(C, 6);  matrixButtons[11] = !PIN_READ(B, 1);
+    matrixButtons[8]  = !PIN_READ(B, 6);  matrixButtons[9]  = !PIN_READ(B, 2);
+    matrixButtons[10] = !PIN_READ(B, 5);  matrixButtons[11] = !PIN_READ(B, 1);
     SET_PIN_HIGH(D, 0);
 
     SET_PIN_LOW(D, 4);
     delayMicroseconds(10);
     matrixButtons[12] = !PIN_READ(B, 3);  matrixButtons[13] = !PIN_READ(B, 4);
-    matrixButtons[14] = !PIN_READ(B, 2);  matrixButtons[15] = !PIN_READ(B, 6);
-    matrixButtons[16] = !PIN_READ(C, 6);  matrixButtons[17] = !PIN_READ(B, 1);
+    matrixButtons[14] = !PIN_READ(B, 6);  matrixButtons[15] = !PIN_READ(B, 2);
+    matrixButtons[16] = !PIN_READ(B, 5);  matrixButtons[17] = !PIN_READ(B, 1);
     SET_PIN_HIGH(D, 4);
 
     SET_PIN_LOW(F, 5);
     delayMicroseconds(10);
     matrixButtons[18] = !PIN_READ(B, 3);  matrixButtons[19] = !PIN_READ(B, 4);
-    matrixButtons[20] = !PIN_READ(B, 2);  matrixButtons[21] = !PIN_READ(B, 6);
-    matrixButtons[22] = !PIN_READ(C, 6);  matrixButtons[23] = !PIN_READ(B, 1);
+    matrixButtons[20] = !PIN_READ(B, 6);  matrixButtons[21] = !PIN_READ(B, 2);
+    matrixButtons[22] = !PIN_READ(B, 5);  matrixButtons[23] = !PIN_READ(B, 1);
     SET_PIN_HIGH(F, 5);
 
     SET_PIN_LOW(F, 4);
     delayMicroseconds(10);
     matrixButtons[24] = !PIN_READ(B, 3);  matrixButtons[25] = !PIN_READ(B, 4);
-    matrixButtons[26] = !PIN_READ(B, 2);  matrixButtons[27] = !PIN_READ(B, 6);
+    matrixButtons[26] = !PIN_READ(B, 6);  matrixButtons[27] = !PIN_READ(B, 2);
     SET_PIN_HIGH(F, 4);
 }
 // ------------------------------------------------------------------
@@ -328,7 +335,7 @@ void setAxes(int x, int y) {
 void rebootToBootloader() {
     Keyboard.releaseAll();
     wasd.releaseAll();
-    ledBoth(false);
+    ledAll(false);
     delay(20);
     USBDevice.detach();
     delay(20);
@@ -581,9 +588,10 @@ void setup() {
     debLastMs = millis();
     for (int i = 0; i < 8; i++) modCount[i] = 0;
 
+    pinMode(LED0_PIN, OUTPUT);
     pinMode(LED1_PIN, OUTPUT);
     pinMode(LED2_PIN, OUTPUT);
-    ledBoth(false);
+    ledAll(false);
 
     kpBegin();                               // nastavitve in keymap iz EEPROM
     js.begin();                              // kalibracija iz EEPROM
@@ -602,9 +610,9 @@ void setup() {
     //initiate columns
     SET_PIN_MODE_INPUT(B, 3);   SET_PIN_HIGH(B, 3);
     SET_PIN_MODE_INPUT(B, 4);   SET_PIN_HIGH(B, 4);
-    SET_PIN_MODE_INPUT(B, 2);   SET_PIN_HIGH(B, 2);
     SET_PIN_MODE_INPUT(B, 6);   SET_PIN_HIGH(B, 6);
-    SET_PIN_MODE_INPUT(C, 6);   SET_PIN_HIGH(C, 6);
+    SET_PIN_MODE_INPUT(B, 2);   SET_PIN_HIGH(B, 2);
+    SET_PIN_MODE_INPUT(B, 5);   SET_PIN_HIGH(B, 5);
     SET_PIN_MODE_INPUT(B, 1);   SET_PIN_HIGH(B, 1);
 }
 

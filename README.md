@@ -57,6 +57,17 @@ Arduino IDE, board "Arduino Micro" (or Leonardo). The sketch needs the
 Holding both hexagon keys (5 and 11) for five seconds jumps straight to the
 bootloader, which is easier than finding the reset pads.
 
+### If pin 9 is dead on your board
+
+One of our three Pro Micros has a dead pin 9 (B5). The code in this repository
+assumes a working one. To flash that particular board, change three things and
+do **not** commit them:
+
+- `readMatrix()`: read col4 from `C6` instead of `B5` (four places, rows 0-3).
+- `setup()`: `SET_PIN_MODE_INPUT(C, 6)` in place of the `B, 5` line.
+- LED0 then has no pin left, so drop `LED0_PIN` from `ledAll()`, the
+  `pinMode` line and the `GET_CENTER` step.
+
 ## Using the configurator
 
 ```

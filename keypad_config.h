@@ -56,12 +56,14 @@ struct KPRecord { KPConfig c; uint16_t crc; };
 
 KPConfig kpCfg;
 
-// Privzeti keymap: Vidova izvirna razporeditev. Vse plasti se zacnejo enake,
+// Privzeti keymap: Vidova izvirna razporeditev. Pari indeksov 2/3, 8/9,
+// 14/15, 20/21 in 26/27 so zamenjani, ker sta col2 in col3 zamenjala pina -
+// tako fizicne tipke ostanejo iste kot prej. Vse plasti se zacnejo enake,
 // da nobena plast ni slepa ulica, iz katere se ne da nazaj.
 static const uint8_t KP_DEFAULT_KEYS[KP_KEYS] PROGMEM = {
-    '0', 'x', 'v', 'c', 't', 'b', KEY_LEFT_ALT, KEY_LEFT_CTRL, ' ', KEY_LEFT_SHIFT,
-    '\n', 'n', 'g', 'q', 'f', 'e', KEY_TAB, 'r', '1', '2',
-    '4', '3', KEY_ESC, '9', '5', '6', '8', '7'
+    '0', 'x', 'c', 'v', 't', 'b', KEY_LEFT_ALT, KEY_LEFT_CTRL, KEY_LEFT_SHIFT, ' ',
+    '\n', 'n', 'g', 'q', 'e', 'f', KEY_TAB, 'r', '1', '2',
+    '3', '4', KEY_ESC, '9', '5', '6', '7', '8'
 };
 
 // --- dostop do nastavitev v obliki, ki jo rabita druga dva headerja ---

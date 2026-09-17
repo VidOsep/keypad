@@ -225,6 +225,75 @@ class Chip(tk.Canvas):
                          fill=p["accent"] if self.tone == "accent" else p["text"])
 
 
+class ChipRow(tk.Canvas):
+    """A grid of pills drawn on a single canvas.
+
+    Every Tk widget is a real window, and on macOS each one costs something to
+    map, so twenty-odd little button widgets make a panel slow to show. One
+    canvas with hit testing behaves the same and is one window.
+    """
+
+    def __init__(self, master, labels, command, pal, cols=4, cw=64, ch=26, gap=4):
+        self.pal, self.labels, self.command = pal, labels, command
+        self.cols, self.cw, self.ch, self.gap = cols, cw, ch, gap
+        self.active, self.hover = set(), None
+        rows = (len(labels) + cols - 1) // cols
+        w = cols * (cw + gap) - gap
+        h = rows * (ch + gap) - gap
+        super().__init__(master, width=w, height=h, highlightthickness=0,
+                         bg=pal["surface"], cursor="hand2")
+        self.bind("<Button-1>", self._click)
+        self.bind("<Motion>", self._motion)
+        self.bind("<Leave>", lambda e: self._set_hover(None))
+        self.draw()
+
+    def _box(self, i):
+        r, c = divmod(i, self.cols)
+        x0 = c * (self.cw + self.gap)
+        y0 = r * (self.ch + self.gap)
+        return x0, y0, x0 + self.cw, y0 + self.ch
+
+    def _hit(self, x, y):
+        for i in range(len(self.labels)):
+            x0, y0, x1, y1 = self._box(i)
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                return i
+        return None
+
+    def _click(self, ev):
+        i = self._hit(ev.x, ev.y)
+        if i is not None:
+            self.command(i)
+
+    def _motion(self, ev):
+        self._set_hover(self._hit(ev.x, ev.y))
+
+    def _set_hover(self, i):
+        if i != self.hover:
+            self.hover = i
+            self.draw()
+
+    def set_active(self, indices):
+        indices = set(indices)
+        if indices != self.active:
+            self.active = indices
+            self.draw()
+
+    def draw(self):
+        p = self.pal
+        self.delete("all")
+        for i, label in enumerate(self.labels):
+            x0, y0, x1, y1 = self._box(i)
+            on = i in self.active
+            fill = p["accent_soft"] if (on or i == self.hover) else p["sunken"]
+            edge = p["accent"] if on else p["border"]
+            self.create_polygon(round_rect(x0 + 1, y0 + 1, x1 - 1, y1 - 1, 8),
+                                fill=fill, outline=edge, width=1, smooth=True)
+            self.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=label,
+                             font=(p["family"], p["size"] - 1),
+                             fill=p["accent"] if on else p["text"])
+
+
 class Segmented(tk.Canvas):
     """iOS-style segmented control - used for the layer selector."""
 
@@ -412,7 +481,8 @@ class App:
         root.configure(bg=self.pal["bg"])
         self._build()
         self.root.after(40, self._pump)
-        self.draw_keys()
+        self.build_keys()
+        self.build_views()
         self.sync_settings()
         self.draw_views()
 
@@ -467,10 +537,16 @@ class App:
 
         body = tk.Frame(outer, bg=p["bg"])
         body.pack(fill="both", expand=True)
+        body.rowconfigure(0, weight=1)
+        body.columnconfigure(0, weight=1)
+        # Both tabs live in the same cell and are swapped with tkraise, so
+        # switching never re-lays-out or re-maps their contents.
         self.tabs = [tk.Frame(body, bg=p["bg"]), tk.Frame(body, bg=p["bg"])]
+        for frame in self.tabs:
+            frame.grid(row=0, column=0, sticky="nsew")
         self._build_keys(self.tabs[0])
         self._build_joy(self.tabs[1])
-        self.tabs[0].pack(fill="both", expand=True)
+        self.tabs[0].tkraise()
 
         foot = tk.Frame(outer, bg=p["bg"])
         foot.pack(fill="x", pady=(10, 0))
@@ -487,9 +563,9 @@ class App:
             Chip(foot, text, cmd, p, tone=tone).pack(side="right", padx=(6, 0))
 
     def show_tab(self, n):
-        for frame in self.tabs:
-            frame.pack_forget()
-        self.tabs[n].pack(fill="both", expand=True)
+        self.tabs[n].tkraise()
+        if n == 1:
+            self.draw_views()
 
     def pick_port(self):
         if not HAVE_SERIAL:
@@ -547,27 +623,16 @@ class App:
         self.cap_box.bind("<FocusOut>", lambda e: self.draw_capture(False))
         self.cap_box.bind("<Configure>", lambda e: self.draw_capture(self.capture_on))
 
-        mods = tk.Frame(pad, bg=p["surface"])
-        mods.pack(fill="x", pady=(10, 2))
-        self.mod_chips = []
-        for b, name in enumerate(MOD_NAME):
-            ch = Chip(mods, name, lambda b=b: self.toggle_mod(b), p, width=62)
-            ch.pack(side="left", padx=(0, 5))
-            self.mod_chips.append(ch)
+        self.mod_row = ChipRow(pad, MOD_NAME, self.toggle_mod, p, cols=4, cw=66)
+        self.mod_row.pack(anchor="w", pady=(10, 2))
 
         self.heading(pad, "quick").pack(anchor="w", pady=(12, 5))
-        qg = tk.Frame(pad, bg=p["surface"])
-        qg.pack(fill="x")
-        for n, (text, code) in enumerate(QUICK):
-            Chip(qg, text, lambda c=code: self.set_code(c), p, width=64).grid(
-                row=n // 4, column=n % 4, padx=2, pady=2)
+        ChipRow(pad, [q[0] for q in QUICK],
+                lambda i: self.set_code(QUICK[i][1]), p, cols=4, cw=66).pack(anchor="w")
 
         self.heading(pad, "switch to layer").pack(anchor="w", pady=(12, 5))
-        lg = tk.Frame(pad, bg=p["surface"])
-        lg.pack(fill="x")
-        for n in range(LAYERS):
-            Chip(lg, f"L{n}", lambda n=n: self.set_code(LAYER_BASE + n), p,
-                 width=50).pack(side="left", padx=(0, 5))
+        ChipRow(pad, [f"L{n}" for n in range(LAYERS)],
+                lambda i: self.set_code(LAYER_BASE + i), p, cols=4, cw=66).pack(anchor="w")
 
         note = self.card(side)
         note.pack(fill="x", pady=(10, 0))
@@ -657,15 +722,31 @@ class App:
         self.heading(rp, "after calibration").grid(row=1, column=1, pady=(8, 0))
 
     # -- drawing ---------------------------------------------------------
-    def draw_keys(self):
+    # The canvases are built once and then only reconfigured. Rebuilding them
+    # every frame cost several milliseconds a go, which is invisible on X11 and
+    # very much visible on a Mac.
+    def build_keys(self):
         p, c = self.pal, self.canvas
         c.delete("all")
+        self.key_items, self.key_state = {}, {}
         for x, y, text in CAPTIONS:
             c.create_text(x, y, text=text.upper(), anchor="w", fill=p["faint"],
                           font=(p["family"], p["size"] - 3, "bold"))
-
         for idx in sorted(KEY_LAYOUT):
             x, y, shape = KEY_LAYOUT[idx]
+            shadow = self._shape(c, x, y + 2, shape, p["shadow"], "", 1)
+            body = self._shape(c, x, y, shape, p["surface"], p["border"], 1)
+            label = c.create_text(x, y - 4, text="", fill=p["text"],
+                                  font=(p["family"], p["size"], "bold"))
+            number = c.create_text(x, y + 15, text=str(idx), fill=p["faint"],
+                                   font=(p["family"], p["size"] - 4))
+            self.key_items[idx] = (shadow, body, label, number)
+        self.draw_keys()
+
+    def draw_keys(self):
+        """Reconfigure only the keys whose appearance actually changed."""
+        p, c = self.pal, self.canvas
+        for idx, (_shadow, body, label, number) in self.key_items.items():
             down = bool(self.mask & (1 << idx))
             sel = idx == self.sel
             if down:
@@ -676,34 +757,32 @@ class App:
                 fill, edge, ink, wide = p["warn_soft"], p["warn"], p["text"], 1
             else:
                 fill, edge, ink, wide = p["surface"], p["border"], p["text"], 1
-
-            self._shape(c, x, y + 2, shape, p["shadow"], "", 1)   # soft shadow
-            self._shape(c, x, y, shape, fill, edge, wide)
-
             code = self.keymap[self.layer][idx]
             text = cap_of(code, self.mods[self.layer][idx])
-            if text:
-                size = p["size"] - (0 if len(text) <= 3 else 3)
-                c.create_text(x, y - 4, text=text, fill=ink,
-                              font=(p["family"], size, "bold"))
-            c.create_text(x, y + 15, text=str(idx),
-                          fill=p["accent_text"] if down else p["faint"],
-                          font=(p["family"], p["size"] - 4))
+            size = p["size"] - (0 if len(text) <= 3 else 3)
+            state = (fill, edge, wide, ink, text, size)
+            if self.key_state.get(idx) == state:
+                continue
+            self.key_state[idx] = state
+            c.itemconfig(body, fill=fill, outline=edge, width=wide)
+            c.itemconfig(label, text=text, fill=ink,
+                         font=(p["family"], size, "bold"))
+            c.itemconfig(number, fill=p["accent_text"] if down else p["faint"])
         self.sync_selection()
 
     def _shape(self, c, x, y, shape, fill, edge, width):
+        """Draw one key body and return its canvas id."""
         if shape == "circle":
-            c.create_oval(x - CIRCLE_R, y - CIRCLE_R, x + CIRCLE_R, y + CIRCLE_R,
-                          fill=fill, outline=edge, width=width)
-        elif shape == "rsquare":
-            c.create_polygon(round_rect(x - HALF, y - HALF, x + HALF, y + HALF, 13),
-                             fill=fill, outline=edge, width=width, smooth=True)
-        elif shape == "hexagon":
-            c.create_polygon(regular_polygon(x, y, HEX_R, 6, 30), fill=fill,
-                             outline=edge, width=width)
-        else:
-            c.create_polygon(round_rect(x - HALF, y - HALF, x + HALF, y + HALF, 3),
-                             fill=fill, outline=edge, width=width, smooth=True)
+            return c.create_oval(x - CIRCLE_R, y - CIRCLE_R, x + CIRCLE_R, y + CIRCLE_R,
+                                 fill=fill, outline=edge, width=width)
+        if shape == "rsquare":
+            return c.create_polygon(round_rect(x - HALF, y - HALF, x + HALF, y + HALF, 13),
+                                    fill=fill, outline=edge, width=width, smooth=True)
+        if shape == "hexagon":
+            return c.create_polygon(regular_polygon(x, y, HEX_R, 6, 30), fill=fill,
+                                    outline=edge, width=width)
+        return c.create_polygon(round_rect(x - HALF, y - HALF, x + HALF, y + HALF, 3),
+                                fill=fill, outline=edge, width=width, smooth=True)
 
     def draw_capture(self, focused):
         p, c = self.pal, self.cap_box
@@ -723,17 +802,13 @@ class App:
         p = self.pal
         if self.sel is None:
             self.sel_lbl.configure(text="none", fg=p["faint"])
-            for ch in self.mod_chips:
-                ch.tone = "plain"
-                ch.draw()
+            self.mod_row.set_active(())
             return
         code = self.keymap[self.layer][self.sel]
         text = cap_of(code, self.mods[self.layer][self.sel])
         self.sel_lbl.configure(text=f"{self.sel}   {text or '—'}", fg=p["text"])
         m = self.mods[self.layer][self.sel]
-        for b, ch in enumerate(self.mod_chips):
-            ch.tone = "accent" if m & (1 << b) else "plain"
-            ch.draw()
+        self.mod_row.set_active(b for b in range(4) if m & (1 << b))
 
     def sync_settings(self):
         self.mode_seg.set(min(self.cfg["m"], 2))
@@ -744,38 +819,72 @@ class App:
             sl.set(self.cfg[field])
             out.configure(text=str(self.cfg[field]))
 
-    def draw_views(self):
+    TRAIL_N = 380
+    REST_N = 60
+
+    def build_views(self):
+        """Create every dot once; later frames only move them."""
         p = self.pal
-        for c, calibrated in ((self.craw, False), (self.ccal, True)):
+        self.trail_ids, self.rest_ids = [], []
+        self.trail_pos = self.rest_pos = 0
+        for c in (self.craw, self.ccal):
             c.delete("all")
-            s = 252 / 1024.0
             for g in range(1, 4):
                 c.create_line(g * 63, 0, g * 63, 252, fill=p["line"])
                 c.create_line(0, g * 63, 252, g * 63, fill=p["line"])
-            if calibrated:
-                c.create_oval(126 - 110, 126 - 110, 126 + 110, 126 + 110,
-                              outline=p["border"])
-                dz = self.cfg["d"] / 100.0 * 110
-                if dz > 0:
-                    c.create_oval(126 - dz, 126 - dz, 126 + dz, 126 + dz,
-                                  outline=p["rest"], dash=(3, 3))
-                x, y = self.live["ox"] * s, 252 - self.live["oy"] * s
-            else:
-                for rx, ry in self.trail[-400:]:
-                    px, py = rx * s, 252 - ry * s
-                    c.create_oval(px - 1, py - 1, px + 1, py + 1,
-                                  fill=p["trail"], outline="")
-                for rx, ry in self.rest[-60:]:
-                    px, py = rx * s, 252 - ry * s
-                    c.create_oval(px - 2.5, py - 2.5, px + 2.5, py + 2.5,
-                                  fill=p["rest"], outline="")
-                if self.cal:
-                    cx, cy = self.cal[0] * s, 252 - self.cal[1] * s
-                    c.create_line(cx - 7, cy, cx + 7, cy, fill=p["accent"])
-                    c.create_line(cx, cy - 7, cx, cy + 7, fill=p["accent"])
-                x, y = self.live["rx"] * s, 252 - self.live["ry"] * s
-            c.create_oval(x - 5, y - 5, x + 5, y + 5, fill=p["accent"],
-                          outline=p["surface"], width=2)
+        self.ccal.create_oval(16, 16, 236, 236, outline=p["border"])
+        self.dz_item = self.ccal.create_oval(0, 0, 0, 0, outline=p["rest"], dash=(3, 3))
+        for _ in range(self.TRAIL_N):
+            self.trail_ids.append(self.craw.create_oval(0, 0, 0, 0, fill=p["trail"],
+                                                        outline="", state="hidden"))
+        for _ in range(self.REST_N):
+            self.rest_ids.append(self.craw.create_oval(0, 0, 0, 0, fill=p["rest"],
+                                                       outline="", state="hidden"))
+        self.centre_h = self.craw.create_line(0, 0, 0, 0, fill=p["accent"], state="hidden")
+        self.centre_v = self.craw.create_line(0, 0, 0, 0, fill=p["accent"], state="hidden")
+        self.dot_raw = self.craw.create_oval(0, 0, 0, 0, fill=p["accent"],
+                                             outline=p["surface"], width=2)
+        self.dot_cal = self.ccal.create_oval(0, 0, 0, 0, fill=p["accent"],
+                                             outline=p["surface"], width=2)
+        self.draw_views()
+
+    def add_sample(self, rx, ry, resting):
+        """One telemetry sample: move one recycled dot, nothing is created."""
+        if not self.views_live():
+            return
+        s = 252 / 1024.0
+        x, y = rx * s, 252 - ry * s
+        item = self.trail_ids[self.trail_pos]
+        self.craw.coords(item, x - 1, y - 1, x + 1, y + 1)
+        self.craw.itemconfig(item, state="normal")
+        self.trail_pos = (self.trail_pos + 1) % self.TRAIL_N
+        if resting:
+            item = self.rest_ids[self.rest_pos]
+            self.craw.coords(item, x - 2.5, y - 2.5, x + 2.5, y + 2.5)
+            self.craw.itemconfig(item, state="normal")
+            self.rest_pos = (self.rest_pos + 1) % self.REST_N
+
+    def views_live(self):
+        return self.tab_seg.value == 1
+
+    def draw_views(self):
+        """Move the live dots and the dead-zone ring; everything else persists."""
+        if not self.views_live():
+            return
+        s = 252 / 1024.0
+        x, y = self.live["rx"] * s, 252 - self.live["ry"] * s
+        self.craw.coords(self.dot_raw, x - 5, y - 5, x + 5, y + 5)
+        x, y = self.live["ox"] * s, 252 - self.live["oy"] * s
+        self.ccal.coords(self.dot_cal, x - 5, y - 5, x + 5, y + 5)
+        dz = self.cfg["d"] / 100.0 * 110
+        self.ccal.coords(self.dz_item, 126 - dz, 126 - dz, 126 + dz, 126 + dz)
+        self.ccal.itemconfig(self.dz_item, state="normal" if dz > 0 else "hidden")
+        if self.cal:
+            cx, cy = self.cal[0] * s, 252 - self.cal[1] * s
+            self.craw.coords(self.centre_h, cx - 7, cy, cx + 7, cy)
+            self.craw.coords(self.centre_v, cx, cy - 7, cx, cy + 7)
+            self.craw.itemconfig(self.centre_h, state="normal")
+            self.craw.itemconfig(self.centre_v, state="normal")
 
     def set_status(self, text, tone="dim"):
         self.status.configure(text=text, fg=self.pal[tone])
@@ -801,9 +910,9 @@ class App:
         self.tab_seg.set(tab)
         self.show_tab(tab)
         self.port_chip.set_text(port)
-        self.draw_keys()
+        self.build_keys()
         self.sync_settings()
-        self.draw_views()
+        self.build_views()
         self.draw_capture(False)
         self.set_status("connected" if self.link.connected else "not connected",
                         "ok" if self.link.connected else "dim")
@@ -890,6 +999,9 @@ class App:
     def clear_trail(self):
         self.trail.clear()
         self.rest.clear()
+        for item in self.trail_ids + self.rest_ids:
+            self.craw.itemconfig(item, state="hidden")
+        self.trail_pos = self.rest_pos = 0
         self.draw_views()
 
     def write_eeprom(self):
@@ -980,8 +1092,9 @@ class App:
                              layer=int(f[5]), st=int(f[6]))
             mask = int(f[7], 16)
             self.trail.append((rx, ry))
-            if len(self.trail) > 600:
-                del self.trail[:200]
+            if len(self.trail) > 24:            # only the rest detector needs these
+                del self.trail[:12]
+            resting = False
             if len(self.trail) > 6:
                 seg = self.trail[-6:]
                 spread = max(max(abs(a[0] - b[0]), abs(a[1] - b[1]))
@@ -990,8 +1103,10 @@ class App:
                 if spread <= 2 and near and (not self.rest or math.hypot(
                         rx - self.rest[-1][0], ry - self.rest[-1][1]) > 1.5):
                     self.rest.append((rx, ry))
+                    resting = True
                     if len(self.rest) > 120:
                         del self.rest[:40]
+            self.add_sample(rx, ry, resting)
             changed = mask != self.mask
             self.mask = mask
             return "keys" if changed else "views"
