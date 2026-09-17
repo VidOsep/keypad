@@ -1,0 +1,15 @@
+# Arduino build output
+build/
+*.hex
+*.elf
+
+# editor and OS noise
+.DS_Store
+*.swp
+__pycache__/
+*.pyc
+
+# local backups and session scratch
+*.orig
+*.bak
+Claude outputs/

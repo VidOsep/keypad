@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keypad konfigurator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F6F2; --surface:#FFFFFF; --sunk:#EAEEE7; --raised:#FDFEFC;
+  --ink:#12180F; --ink-soft:#5A6455; --ink-faint:#8B9485;
+  --rule:#D8DED2; --rule-strong:#BCC5B4;
+  --accent:#2F6B4F; --accent-ink:#FFFFFF; --accent-soft:#E1EDE4;
+  --layerkey:#9A5B18; --layerkey-soft:#F7E9D8;
+  --live:#1D7FD4; --live-soft:#DCEBF9;
+  --warn:#A32C2C;
+  --shadow:0 1px 2px rgba(18,24,15,.06);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ground:#0E1310; --surface:#161C17; --sunk:#1C231D; --raised:#1F2720;
+  --ink:#E6EBE3; --ink-soft:#A3AE9F; --ink-faint:#78826F;
+  --rule:#2A332A; --rule-strong:#3C483B;
+  --accent:#7CC79B; --accent-ink:#0E1310; --accent-soft:#1D2E23;
+  --layerkey:#D79A54; --layerkey-soft:#2E2418;
+  --live:#63B3F0; --live-soft:#152634;
+  --warn:#E07070;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}}
+:root[data-theme="dark"]{
+  --ground:#0E1310; --surface:#161C17; --sunk:#1C231D; --raised:#1F2720;
+  --ink:#E6EBE3; --ink-soft:#A3AE9F; --ink-faint:#78826F;
+  --rule:#2A332A; --rule-strong:#3C483B;
+  --accent:#7CC79B; --accent-ink:#0E1310; --accent-soft:#1D2E23;
+  --layerkey:#D79A54; --layerkey-soft:#2E2418;
+  --live:#63B3F0; --live-soft:#152634;
+  --warn:#E07070;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif; font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+h1,h2,h3,.ui{font-family:"IBM Plex Sans Condensed",system-ui,sans-serif}
+.mono{font-family:"IBM Plex Mono",monospace}
+
+/* ---- glava ---- */
+header{position:sticky; top:0; z-index:10; background:var(--surface);
+  border-bottom:1px solid var(--rule); box-shadow:var(--shadow)}
+.bar{max-width:76rem; margin:0 auto; padding:.75rem 1.25rem;
+  display:flex; align-items:center; gap:.75rem; flex-wrap:wrap}
+h1{font-size:1.15rem; font-weight:700; margin:0; letter-spacing:-.01em}
+.spacer{flex:1}
+button{font-family:"IBM Plex Sans Condensed",system-ui,sans-serif; font-weight:600;
+  font-size:.88rem; padding:.42rem .85rem; border-radius:5px; cursor:pointer;
+  border:1px solid var(--rule-strong); background:var(--raised); color:var(--ink)}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.42; cursor:default}
+button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+button.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.dot{width:.5rem; height:.5rem; border-radius:50%; background:var(--ink-faint); flex:none}
+.dot.on{background:var(--accent)}
+#status{font-size:.85rem; color:var(--ink-soft)}
+
+/* ---- postavitev ---- */
+main{max-width:76rem; margin:0 auto; padding:1.5rem 1.25rem 4rem;
+  display:grid; grid-template-columns:minmax(0,1fr) 20rem; gap:1.5rem; align-items:start}
+@media (max-width:900px){ main{grid-template-columns:minmax(0,1fr)} }
+.panel{background:var(--surface); border:1px solid var(--rule); border-radius:8px;
+  box-shadow:var(--shadow); padding:1.1rem 1.15rem;
+  display:flex; flex-direction:column; gap:.9rem}
+.col{display:flex; flex-direction:column; gap:1.5rem; min-width:0}
+h2{font-size:.72rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin:0}
+
+/* ---- plasti ---- */
+.tabs{display:flex; gap:.35rem; flex-wrap:wrap}
+.tab{padding:.35rem .8rem; border-radius:5px; border:1px solid var(--rule-strong);
+  background:var(--raised); font-size:.85rem; font-weight:600; cursor:pointer;
+  font-family:"IBM Plex Sans Condensed",system-ui,sans-serif}
+.tab[aria-selected="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.tab.live::after{content:"●"; margin-left:.4rem; color:var(--live); font-size:.7em; vertical-align:.15em}
+
+/* ---- mreza tipk ---- */
+.grid{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.4rem}
+.key{position:relative; aspect-ratio:1.35; border-radius:6px; cursor:pointer;
+  border:1px solid var(--rule-strong); background:var(--sunk); color:var(--ink);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:.1rem; padding:.2rem; overflow:hidden}
+.key .idx{position:absolute; top:.18rem; left:.3rem; font-size:.6rem;
+  font-family:"IBM Plex Mono",monospace; color:var(--ink-faint)}
+.key .cap{font-family:"IBM Plex Sans Condensed",system-ui,sans-serif; font-weight:600;
+  font-size:.92rem; text-align:center; line-height:1.15; word-break:break-word}
+.key.empty .cap{color:var(--ink-faint); font-weight:400}
+.key.layer{background:var(--layerkey-soft); border-color:var(--layerkey)}
+.key.layer .cap{color:var(--layerkey)}
+.key[aria-pressed="true"]{border-color:var(--accent); border-width:2px; background:var(--accent-soft)}
+.key.down{background:var(--live-soft); border-color:var(--live); border-width:2px}
+.key.blank{visibility:hidden; cursor:default}
+.hint{font-size:.82rem; color:var(--ink-soft)}
+
+/* ---- izbirnik tipke ---- */
+.chips{display:flex; flex-wrap:wrap; gap:.3rem}
+.chip{font-family:"IBM Plex Mono",monospace; font-size:.75rem; padding:.25rem .5rem;
+  border-radius:4px; border:1px solid var(--rule-strong); background:var(--raised);
+  cursor:pointer; color:var(--ink)}
+.chip:hover{border-color:var(--accent)}
+.chip.lay{border-color:var(--layerkey); color:var(--layerkey)}
+.chip.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.chip:disabled{opacity:.35; cursor:default}
+#capture{width:100%; padding:.55rem .7rem; border-radius:6px; text-align:center;
+  border:1px dashed var(--rule-strong); background:var(--sunk); color:var(--ink-soft);
+  font-family:"IBM Plex Sans Condensed",system-ui,sans-serif; font-weight:600; font-size:.85rem;
+  cursor:text}
+#capture:focus{outline:none; border-style:solid; border-color:var(--accent);
+  background:var(--accent-soft); color:var(--ink)}
+.sel{font-size:.85rem; color:var(--ink-soft)}
+.sel b{color:var(--ink); font-family:"IBM Plex Sans Condensed",system-ui,sans-serif}
+
+/* ---- drsniki ---- */
+.field{display:grid; grid-template-columns:1fr auto; gap:.15rem .6rem; align-items:center}
+.field label{font-size:.83rem; color:var(--ink-soft)}
+.field output{font-family:"IBM Plex Mono",monospace; font-size:.8rem;
+  font-variant-numeric:tabular-nums; color:var(--ink)}
+.field input[type=range]{grid-column:1/-1; width:100%; accent-color:var(--accent)}
+.row{display:flex; align-items:center; gap:.5rem; font-size:.85rem; color:var(--ink-soft)}
+select{font-family:inherit; font-size:.85rem; padding:.3rem .45rem; border-radius:5px;
+  border:1px solid var(--rule-strong); background:var(--raised); color:var(--ink)}
+
+/* ---- kalibracija ---- */
+.views{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
+.view{display:flex; flex-direction:column; gap:.3rem}
+.view canvas{width:100%; height:auto; aspect-ratio:1; border-radius:6px;
+  border:1px solid var(--rule); background:var(--sunk); display:block}
+.view span{font-size:.7rem; color:var(--ink-faint); text-align:center;
+  font-family:"IBM Plex Mono",monospace}
+#calstate{font-size:.85rem; color:var(--ink-soft); min-height:1.4em}
+
+.notice{border:1px solid var(--warn); border-radius:8px; padding:1rem 1.15rem;
+  background:var(--surface); color:var(--ink); max-width:44rem; margin:2rem auto;
+  display:flex; flex-direction:column; gap:.6rem}
+.notice h2{color:var(--warn)}
+code{font-family:"IBM Plex Mono",monospace; font-size:.86em;
+  background:var(--sunk); padding:.1em .35em; border-radius:3px}
+</style>
+</head>
+<body>
+
+<header><div class="bar">
+  <h1>Keypad konfigurator</h1>
+  <span class="dot" id="dot"></span><span id="status">ni povezan</span>
+  <span class="spacer"></span>
+  <button id="connect" class="primary">Poveži</button>
+  <button id="reload" disabled>Preberi</button>
+  <button id="save" disabled>Zapiši v EEPROM</button>
+  <button id="defaults" disabled>Privzeto</button>
+</div></header>
+
+<div class="notice" id="unsupported" hidden>
+  <h2>Brskalnik ne podpira WebSerial</h2>
+  <p>Ta stran se s keypadom pogovarja prek <code>navigator.serial</code>, ki ga imata Chrome in Edge, Safari pa ne. Odpri jo v Chromu.</p>
+  <p>Če si stran odprl z dvoklikom, je najbrž težava v tem: WebSerial na naslovih <code>file://</code> ne deluje. V mapi z datoteko poženi <code>python3 -m http.server 8000</code> in odpri <code>http://localhost:8000/configurator.html</code>.</p>
+</div>
+
+<main id="app" hidden>
+  <div class="col">
+    <div class="panel">
+      <h2>Plasti</h2>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div class="grid" id="grid"></div>
+      <p class="hint">Klikni tipko na mreži ali pritisni pravo tipko na keypadu — modro obrobljena je tista, ki jo trenutno držiš. Med povezavo tipke ne gredo v računalnik.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Kalibracija palice</h2>
+      <div class="views">
+        <div class="view"><canvas id="craw" width="440" height="440"></canvas><span>surovo + izmerjen rob</span></div>
+        <div class="view"><canvas id="ccal" width="440" height="440"></canvas><span>po kalibraciji</span></div>
+      </div>
+      <p id="calstate"></p>
+      <div class="row"><button id="calibrate">Zaženi kalibracijo</button>
+        <span class="hint">Nato po korakih s tipko <b>b</b> na keypadu.</span></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h2>Izbrana tipka</h2>
+      <p class="sel" id="sel">nobena ni izbrana</p>
+      <div id="capture" tabindex="0">klikni sem in pritisni tipko</div>
+      <div class="chips" id="modrow"></div>
+      <div class="chips" id="quick"></div>
+      <p class="hint">Modifikatorje lahko klikneš spodaj ali pa jih kar pritisneš skupaj s tipko v polju zgoraj.</p>
+      <h2 style="margin-top:.4rem">Preklop plasti</h2>
+      <div class="chips" id="layerchips"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Palica</h2>
+      <div class="row"><label for="mode">Način</label>
+        <select id="mode"><option value="0">gamepad</option><option value="1">WASD</option><option value="2">puščice</option></select></div>
+      <div class="row"><input type="checkbox" id="mirror"><label for="mirror">zamenjaj levo in desno</label></div>
+      <div class="field"><label for="dz">mrtva cona</label><output id="dz_o"></output><input type="range" id="dz" min="0" max="40"></div>
+      <div class="field"><label for="ro">začetek hoje</label><output id="ro_o"></output><input type="range" id="ro" min="10" max="95"></div>
+      <div class="field"><label for="rf">konec hoje</label><output id="rf_o"></output><input type="range" id="rf" min="5" max="90"></div>
+      <div class="field"><label for="ao">prag smeri</label><output id="ao_o"></output><input type="range" id="ao" min="10" max="80"></div>
+      <div class="field"><label for="af">spust smeri</label><output id="af_o"></output><input type="range" id="af" min="5" max="75"></div>
+      <p class="hint">Spremembe veljajo takoj. V EEPROM jih zapiše šele gumb zgoraj.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+const KEYS = 28, LAYERS = 4, ROWS = 5, COLS = 6, LAYER_BASE = 0x88;
+
+/* ---------- kode tipk ---------- */
+const NAMED = {0x80:"Ctrl L",0x81:"Shift L",0x82:"Alt L",0x83:"Cmd L",
+  0x84:"Ctrl R",0x85:"Shift R",0x86:"Alt R",0x87:"Cmd R",
+  0xB0:"Enter",0xB1:"Esc",0xB2:"Backspace",0xB3:"Tab",0xC1:"Caps",
+  0xD1:"Insert",0xD2:"Home",0xD3:"PgUp",0xD4:"Delete",0xD5:"End",0xD6:"PgDn",
+  0xD7:"→",0xD8:"←",0xD9:"↓",0xDA:"↑",0x20:"Space"};
+for (let i = 1; i <= 12; i++) NAMED[0xC1 + i] = "F" + i;
+
+const MOD_SYM = ["\u2303", "\u21E7", "\u2325", "\u2318"];   // Ctrl Shift Alt Cmd
+
+function capOf(c, m){
+  if (c === 0) return "—";
+  if (c >= LAYER_BASE && c < LAYER_BASE + LAYERS) return "plast " + (c - LAYER_BASE);
+  let base;
+  if (NAMED[c]) base = NAMED[c];
+  else if (c > 0x20 && c < 0x7F) base = String.fromCharCode(c);
+  else base = "0x" + c.toString(16).toUpperCase();
+  let pre = "";
+  for (let b = 0; b < 4; b++) if ((m || 0) & (1 << b)) pre += MOD_SYM[b];
+  return pre + base;
+}
+
+const CODE_MAP = {Space:0x20,Enter:0xB0,Escape:0xB1,Backspace:0xB2,Tab:0xB3,
+  ArrowUp:0xDA,ArrowDown:0xD9,ArrowLeft:0xD8,ArrowRight:0xD7,CapsLock:0xC1,
+  Insert:0xD1,Home:0xD2,PageUp:0xD3,Delete:0xD4,End:0xD5,PageDown:0xD6,
+  ShiftLeft:0x81,ControlLeft:0x80,AltLeft:0x82,MetaLeft:0x83,
+  ShiftRight:0x85,ControlRight:0x84,AltRight:0x86,MetaRight:0x87,
+  Minus:45,Equal:61,BracketLeft:91,BracketRight:93,Backslash:92,
+  Semicolon:59,Quote:39,Backquote:96,Comma:44,Period:46,Slash:47};
+for (let i = 1; i <= 12; i++) CODE_MAP["F" + i] = 0xC1 + i;
+"abcdefghijklmnopqrstuvwxyz".split("").forEach(ch => CODE_MAP["Key" + ch.toUpperCase()] = ch.charCodeAt(0));
+"0123456789".split("").forEach(d => CODE_MAP["Digit" + d] = d.charCodeAt(0));
+
+/* ---------- stanje ---------- */
+const state = {
+  keymap: Array.from({length: LAYERS}, () => new Array(KEYS).fill(0)),
+  mods:   Array.from({length: LAYERS}, () => new Array(KEYS).fill(0)),
+  cfg: {m:0, x:1, d:6, o:50, f:32, a:40, b:26},
+  layer: 0, sel: -1, mask: 0, cal: null, lut: null,
+  live: {rx:512, ry:512, ox:512, oy:512, mode:0, layer:0, st:0}
+};
+
+/* ---------- serijska povezava ---------- */
+let port = null, writer = null, reader = null, pending = null, rxBuf = "";
+
+async function sendCmd(cmd, done) {
+  if (!writer) throw new Error("ni povezave");
+  done = done || (l => l === "OK" || l === "ERR");
+  const lines = [];
+  const p = new Promise((res, rej) => {
+    pending = {lines, done, res, rej};
+    setTimeout(() => { if (pending && pending.res === res) { pending = null; rej(new Error("brez odgovora: " + cmd)); } }, 2500);
+  });
+  await writer.write(new TextEncoder().encode(cmd + "\n"));
+  return p;
+}
+
+function onLine(line) {
+  if (line.startsWith("t ")) { onTelemetry(line); return; }
+  if (!pending) return;
+  pending.lines.push(line);
+  if (pending.done(line)) { const p = pending; pending = null; p.res(p.lines); }
+}
+
+// Beremo surove bajte in dekodiramo sami. TextDecoderStream prek pipeTo
+// zaklene port.readable, zaradi cesar port.close() pozneje vrze napako.
+async function readLoop() {
+  const dec = new TextDecoder();
+  reader = port.readable.getReader();
+  try {
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      rxBuf += dec.decode(value, {stream: true});
+      let i;
+      while ((i = rxBuf.indexOf("\n")) >= 0) {
+        onLine(rxBuf.slice(0, i).replace(/\r$/, ""));
+        rxBuf = rxBuf.slice(i + 1);
+      }
+    }
+  } catch (e) { /* vrata zaprta */ }
+  try { reader.releaseLock(); } catch (e) {}
+  reader = null;
+  disconnected();
+}
+
+function setStatus(t, on) {
+  document.getElementById("status").textContent = t;
+  document.getElementById("dot").classList.toggle("on", !!on);
+}
+
+function disconnected() {
+  port = null; writer = null; pending = null;
+  setStatus("ni povezan", false);
+  document.getElementById("connect").textContent = "Poveži";
+  ["reload","save","defaults"].forEach(id => document.getElementById(id).disabled = true);
+}
+
+async function connect() {
+  if (port) {                                  // odklop
+    const p = port;
+    try { await sendCmd("T0"); await sendCmd("X0"); } catch (e) {}
+    try { if (reader) await reader.cancel(); } catch (e) {}
+    try { if (writer) writer.releaseLock(); } catch (e) {}
+    disconnected();
+    try { await p.close(); } catch (e) {}
+    return;
+  }
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({baudRate: 115200});
+    writer = port.writable.getWriter();
+    readLoop();
+    await new Promise(r => setTimeout(r, 300));    // Pro Micro potrebuje hip
+    const id = await sendCmd("?", l => l.startsWith("KP "));
+    setStatus("povezan · " + id[id.length - 1], true);
+    document.getElementById("connect").textContent = "Odkloni";
+    ["reload","save","defaults"].forEach(id2 => document.getElementById(id2).disabled = false);
+    await sendCmd("X1");                            // tipke ne smejo tipkati v GUI
+    await sendCmd("T1");
+    await readAll();
+  } catch (e) {
+    setStatus("napaka: " + e.message, false);
+    try { if (port) await port.close(); } catch (e2) {}
+    disconnected();
+  }
+}
+
+/* ---------- branje in pisanje nastavitev ---------- */
+async function readAll() {
+  const lines = await sendCmd("G");
+  for (const l of lines) {
+    if (l.startsWith("CFG ")) {
+      const v = l.slice(4).trim().split(/\s+/).map(Number);
+      state.cfg = {m:v[0], x:v[1], d:v[2], o:v[3], f:v[4], a:v[5], b:v[6]};
+    } else if (l.startsWith("KM ") || l.startsWith("MD ")) {
+      const [tag, L, hex] = l.split(/\s+/);
+      const layer = Number(L);
+      const dst = tag === "KM" ? state.keymap : state.mods;
+      for (let i = 0; i < KEYS; i++)
+        dst[layer][i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+  }
+  await readCal();
+  renderAll();
+}
+
+async function readCal() {
+  try {
+    const lines = await sendCmd("L", l => l.startsWith("LUT"));
+    for (const l of lines) {
+      if (l.startsWith("CAL ")) {
+        const v = l.slice(4).trim().split(/\s+/).map(Number);
+        state.cal = {cx:v[0], cy:v[1], ang:v[2], a:v[3], b:v[4], th:v[5]};
+      } else if (l.startsWith("LUT")) {
+        state.lut = l.slice(3).trim().split(/\s+/).map(Number);
+      }
+    }
+  } catch (e) { state.cal = null; state.lut = null; }
+}
+
+async function setKey(layer, idx, code, mods) {
+  state.keymap[layer][idx] = code;
+  state.mods[layer][idx] = mods || 0;
+  renderGrid(); renderSel(); renderMods();
+  if (writer) { try { await sendCmd(`K ${layer} ${idx} ${code} ${mods || 0}`); } catch (e) {} }
+}
+
+async function setField(f, v) {
+  state.cfg[f] = v;
+  if (writer) { try { await sendCmd(`P${f} ${v}`); } catch (e) {} }
+}
+
+/* ---------- izris ---------- */
+function renderTabs() {
+  const el = document.getElementById("tabs");
+  el.innerHTML = "";
+  for (let L = 0; L < LAYERS; L++) {
+    const b = document.createElement("button");
+    b.className = "tab" + (state.live.layer === L ? " live" : "");
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(L === state.layer));
+    b.textContent = "Plast " + L;
+    b.onclick = () => { state.layer = L; renderTabs(); renderGrid(); };
+    el.appendChild(b);
+  }
+}
+
+function renderGrid() {
+  const el = document.getElementById("grid");
+  el.innerHTML = "";
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const i = r * COLS + c;
+      const d = document.createElement("button");
+      if (i >= KEYS) { d.className = "key blank"; d.disabled = true; el.appendChild(d); continue; }
+      const code = state.keymap[state.layer][i];
+      const mods = state.mods[state.layer][i];
+      const isLayer = code >= LAYER_BASE && code < LAYER_BASE + LAYERS;
+      d.className = "key" + (code === 0 ? " empty" : "") + (isLayer ? " layer" : "")
+                  + ((state.mask >> i) & 1 ? " down" : "");
+      d.setAttribute("aria-pressed", String(i === state.sel));
+      d.innerHTML = `<span class="idx">${i}</span><span class="cap"></span>`;
+      d.querySelector(".cap").textContent = capOf(code, mods);
+      d.onclick = () => { state.sel = i; renderGrid(); renderSel(); renderMods();
+                          document.getElementById("capture").focus(); };
+      el.appendChild(d);
+    }
+  }
+}
+
+function renderSel() {
+  const s = document.getElementById("sel");
+  if (state.sel < 0) { s.textContent = "nobena ni izbrana"; return; }
+  s.innerHTML = `indeks <b>${state.sel}</b>, plast <b>${state.layer}</b> → <b>${capOf(state.keymap[state.layer][state.sel], state.mods[state.layer][state.sel])}</b>`;
+}
+
+const MOD_NAME = ["Ctrl", "Shift", "Alt", "Cmd"];
+
+function renderMods() {
+  const el = document.getElementById("modrow");
+  el.innerHTML = "";
+  const cur = state.sel < 0 ? 0 : state.mods[state.layer][state.sel];
+  const code = state.sel < 0 ? 0 : state.keymap[state.layer][state.sel];
+  const isLayer = code >= LAYER_BASE && code < LAYER_BASE + LAYERS;
+  for (let b = 0; b < 4; b++) {
+    const on = (cur >> b) & 1;
+    const btn = document.createElement("button");
+    btn.className = "chip" + (on ? " on" : "");
+    btn.textContent = MOD_SYM[b] + " " + MOD_NAME[b];
+    btn.disabled = state.sel < 0 || isLayer || code === 0;
+    btn.onclick = () => setKey(state.layer, state.sel, code, cur ^ (1 << b));
+    el.appendChild(btn);
+  }
+}
+
+function renderQuick() {
+  const q = document.getElementById("quick");
+  q.innerHTML = "";
+  const items = [["—",0],["Space",0x20],["Enter",0xB0],["Esc",0xB1],["Tab",0xB3],["Backspace",0xB2],
+    ["Shift",0x81],["Ctrl",0x80],["Alt",0x82],["Cmd",0x83],["↑",0xDA],["↓",0xD9],["←",0xD8],["→",0xD7]];
+  for (let i = 1; i <= 12; i++) items.push(["F" + i, 0xC1 + i]);
+  for (const [name, code] of items) {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = name;
+    b.onclick = () => { if (state.sel >= 0) setKey(state.layer, state.sel, code, state.mods[state.layer][state.sel]); };
+    q.appendChild(b);
+  }
+  const lc = document.getElementById("layerchips");
+  lc.innerHTML = "";
+  for (let L = 0; L < LAYERS; L++) {
+    const b = document.createElement("button");
+    b.className = "chip lay"; b.textContent = "→ plast " + L;
+    b.onclick = () => { if (state.sel >= 0) setKey(state.layer, state.sel, LAYER_BASE + L, 0); };
+    lc.appendChild(b);
+  }
+}
+
+function renderCfg() {
+  document.getElementById("mode").value = String(state.cfg.m);
+  document.getElementById("mirror").checked = !!state.cfg.x;
+  const map = {dz:"d", ro:"o", rf:"f", ao:"a", af:"b"};
+  for (const id in map) {
+    document.getElementById(id).value = state.cfg[map[id]];
+    document.getElementById(id + "_o").textContent = state.cfg[map[id]] + " %";
+  }
+}
+
+function renderAll(){ renderTabs(); renderGrid(); renderSel(); renderQuick(); renderMods(); renderCfg(); draw(); }
+
+/* ---------- risba kalibracije ---------- */
+function draw() {
+  drawRaw(document.getElementById("craw"));
+  drawCal(document.getElementById("ccal"));
+}
+function css(v){ return getComputedStyle(document.body).getPropertyValue(v).trim(); }
+
+function drawRaw(cv) {
+  const g = cv.getContext("2d"), W = cv.width, S = W / 1023;
+  g.clearRect(0, 0, W, W);
+  const ink = css("--ink"), faint = css("--ink-faint"), acc = css("--accent"), live = css("--live");
+
+  g.strokeStyle = faint; g.globalAlpha = .35; g.lineWidth = 1;
+  g.strokeRect(.5, .5, W - 1, W - 1);
+  g.globalAlpha = 1;
+
+  if (state.cal && state.lut) {
+    const cx = state.cal.cx * S, cy = W - state.cal.cy * S;
+    g.beginPath();
+    state.lut.forEach((r, i) => {                       // kot 0 = +Y, CCW
+      const a = i * 2 * Math.PI / state.lut.length;
+      const x = cx - Math.sin(a) * r * S, y = cy - Math.cos(a) * r * S;
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    });
+    g.closePath();
+    g.strokeStyle = acc; g.lineWidth = 2; g.stroke();
+    g.fillStyle = acc; g.globalAlpha = .10; g.fill(); g.globalAlpha = 1;
+
+    g.strokeStyle = ink; g.globalAlpha = .5; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx - 7, cy); g.lineTo(cx + 7, cy);
+    g.moveTo(cx, cy - 7); g.lineTo(cx, cy + 7); g.stroke(); g.globalAlpha = 1;
+  }
+  g.fillStyle = live;
+  g.beginPath();
+  g.arc(state.live.rx * S, W - state.live.ry * S, 5, 0, 7); g.fill();
+}
+
+function drawCal(cv) {
+  const g = cv.getContext("2d"), W = cv.width, R = W * .44, cx = W / 2, cy = W / 2;
+  g.clearRect(0, 0, W, W);
+  const faint = css("--ink-faint"), acc = css("--accent"), live = css("--live");
+
+  g.strokeStyle = acc; g.lineWidth = 2;
+  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+
+  g.strokeStyle = faint; g.globalAlpha = .5; g.lineWidth = 1;
+  g.setLineDash([3, 3]);
+  g.beginPath(); g.arc(cx, cy, R * state.cfg.d / 100, 0, 7); g.stroke();
+  g.setLineDash([]);
+  g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy);
+  g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
+  g.globalAlpha = 1;
+
+  const ux = (state.live.ox - 511.5) / 511.5, uy = (state.live.oy - 511.5) / 511.5;
+  g.fillStyle = live;
+  g.beginPath(); g.arc(cx + ux * R, cy - uy * R, 5, 0, 7); g.fill();
+}
+
+/* ---------- telemetrija ---------- */
+const CAL_TEXT = ["", "korak 1 — spusti palico, nato tipka b",
+  "korak 2 — drži naprej, nato tipka b", "korak 3 — vozi kroge, nato tipka b"];
+let lastState = 0;
+
+function onTelemetry(line) {
+  const v = line.slice(2).trim().split(/\s+/);
+  state.live = {rx:+v[0], ry:+v[1], ox:+v[2], oy:+v[3], mode:+v[4], layer:+v[5], st:+v[6]};
+  const mask = parseInt(v[7] || "0", 16);
+  if (mask !== state.mask) { state.mask = mask; renderGrid(); }
+  document.getElementById("calstate").textContent =
+    state.live.st ? CAL_TEXT[state.live.st] : "";
+  if (lastState && !state.live.st) { readCal().then(renderAll); }   // kalibracija koncana
+  lastState = state.live.st;
+  draw();
+}
+
+/* ---------- vezava ---------- */
+document.getElementById("connect").onclick = connect;
+document.getElementById("reload").onclick  = () => readAll();
+document.getElementById("save").onclick    = async () => {
+  try { await sendCmd("W"); setStatus("shranjeno v EEPROM", true); } catch (e) { setStatus(e.message, true); }
+};
+document.getElementById("defaults").onclick = async () => {
+  if (!confirm("Vrnem privzete tipke in nastavitve? V EEPROM se zapiše šele z gumbom Zapiši.")) return;
+  await sendCmd("D"); await readAll();
+};
+document.getElementById("calibrate").onclick = async () => { try { await sendCmd("C"); } catch (e) {} };
+
+// Pritisk s pravimi modifikatorji: Shift+E v tem polju da Shift+E na tipki.
+// Ce pritisnes sam modifikator, dobis golo modifikatorsko tipko.
+document.getElementById("capture").onkeydown = e => {
+  e.preventDefault();
+  if (state.sel < 0) return;
+  const code = CODE_MAP[e.code];
+  if (code === undefined) return;
+  if (code >= 0x80 && code <= 0x87) { setKey(state.layer, state.sel, code, 0); return; }
+  const m = (e.ctrlKey ? 1 : 0) | (e.shiftKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
+  setKey(state.layer, state.sel, code, m);
+};
+
+document.getElementById("mode").onchange   = e => setField("m", +e.target.value);
+document.getElementById("mirror").onchange = e => setField("x", e.target.checked ? 1 : 0);
+{
+  const map = {dz:"d", ro:"o", rf:"f", ao:"a", af:"b"};
+  for (const id in map) {
+    document.getElementById(id).oninput = e => {
+      const v = +e.target.value;
+      document.getElementById(id + "_o").textContent = v + " %";
+      setField(map[id], v);
+      if (id === "dz") draw();
+    };
+  }
+}
+
+/* ---------- zagon ---------- */
+if (!("serial" in navigator)) {
+  document.getElementById("unsupported").hidden = false;
+} else {
+  document.getElementById("app").hidden = false;
+  renderAll();
+}
+</script>
+</body>
+</html>
